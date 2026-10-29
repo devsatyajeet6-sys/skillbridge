@@ -1,0 +1,19 @@
+{
+  "name": "SkillBridge | AI Skilling & Placement",
+  "short_name": "SkillBridge",
+  "description": "AI-Powered Skilling and Placement Platform connecting students, companies, skill centres, and colleges.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#4f46e5",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
