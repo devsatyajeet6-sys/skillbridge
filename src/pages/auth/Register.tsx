@@ -13,10 +13,18 @@ import {
 } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { UserRole } from '../../types';
+import { SocialAuthModal } from '../../components/auth/SocialAuthModal';
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
   const [selectedRole, setSelectedRole] = useState<UserRole>('student');
+  const [activeSocialProvider, setActiveSocialProvider] = useState<'google' | 'facebook' | 'twitter' | null>(null);
+  const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
+
+  const handleOpenSocialModal = (provider: 'google' | 'facebook' | 'twitter') => {
+    setActiveSocialProvider(provider);
+    setIsSocialModalOpen(true);
+  };
   
   // Common
   const [fullName, setFullName] = useState('');
@@ -220,7 +228,7 @@ export const Register: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <button
                   type="button"
-                  onClick={() => handleSocialRegister('google')}
+                  onClick={() => handleOpenSocialModal('google')}
                   className="py-2.5 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
                   <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
@@ -234,7 +242,7 @@ export const Register: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => handleSocialRegister('facebook')}
+                  onClick={() => handleOpenSocialModal('facebook')}
                   className="py-2.5 px-3 rounded-xl border border-blue-600 bg-[#1877F2] hover:bg-[#166fe5] text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
                   <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
@@ -245,7 +253,7 @@ export const Register: React.FC = () => {
 
                 <button
                   type="button"
-                  onClick={() => handleSocialRegister('twitter')}
+                  onClick={() => handleOpenSocialModal('twitter')}
                   className="py-2.5 px-3 rounded-xl border border-slate-900 bg-black hover:bg-slate-900 text-white font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-sm"
                 >
                   <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
@@ -554,6 +562,22 @@ export const Register: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Interactive Social Authentication Dialog */}
+      <SocialAuthModal
+        isOpen={isSocialModalOpen}
+        provider={activeSocialProvider}
+        initialRole={selectedRole}
+        onClose={() => setIsSocialModalOpen(false)}
+        onSuccess={(role) => {
+          setIsSocialModalOpen(false);
+          if (role === 'student') navigate('/student');
+          else if (role === 'company') navigate('/company');
+          else if (role === 'skill_centre') navigate('/skillcentre');
+          else if (role === 'institution') navigate('/institution');
+          else navigate('/dashboard');
+        }}
+      />
     </div>
   );
 };

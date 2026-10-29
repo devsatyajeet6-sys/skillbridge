@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { GraduationCap, Lock, Mail, ArrowRight, ShieldCheck, UserCheck } from 'lucide-react';
 import { dataService } from '../../services/dataService';
 import { UserRole } from '../../types';
+import { SocialAuthModal } from '../../components/auth/SocialAuthModal';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -11,10 +12,12 @@ export const Login: React.FC = () => {
   const [error, setError] = useState('');
 
   const [socialRole, setSocialRole] = useState<UserRole>('student');
+  const [activeSocialProvider, setActiveSocialProvider] = useState<'google' | 'facebook' | 'twitter' | null>(null);
+  const [isSocialModalOpen, setIsSocialModalOpen] = useState(false);
 
-  const handleSocialLogin = (provider: 'google' | 'facebook' | 'twitter') => {
-    const user = dataService.loginWithSocial(provider, socialRole);
-    redirectToDashboard(user.role);
+  const handleOpenSocialModal = (provider: 'google' | 'facebook' | 'twitter') => {
+    setActiveSocialProvider(provider);
+    setIsSocialModalOpen(true);
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -114,7 +117,7 @@ export const Login: React.FC = () => {
           {/* Google Button */}
           <button
             type="button"
-            onClick={() => handleSocialLogin('google')}
+            onClick={() => handleOpenSocialModal('google')}
             className="w-full py-2.5 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center justify-center gap-3 transition-all shadow-sm hover:shadow"
           >
             <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
@@ -129,7 +132,7 @@ export const Login: React.FC = () => {
           {/* Facebook Button */}
           <button
             type="button"
-            onClick={() => handleSocialLogin('facebook')}
+            onClick={() => handleOpenSocialModal('facebook')}
             className="w-full py-2.5 px-4 rounded-xl border border-blue-600 bg-[#1877F2] hover:bg-[#166fe5] text-white font-semibold text-xs flex items-center justify-center gap-3 transition-all shadow-sm"
           >
             <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
@@ -141,7 +144,7 @@ export const Login: React.FC = () => {
           {/* Twitter (X) Button */}
           <button
             type="button"
-            onClick={() => handleSocialLogin('twitter')}
+            onClick={() => handleOpenSocialModal('twitter')}
             className="w-full py-2.5 px-4 rounded-xl border border-slate-900 bg-black hover:bg-slate-900 text-white font-semibold text-xs flex items-center justify-center gap-3 transition-all shadow-sm"
           >
             <svg className="w-4 h-4 fill-current shrink-0" viewBox="0 0 24 24">
@@ -277,6 +280,18 @@ export const Login: React.FC = () => {
         </div>
 
       </div>
+
+      {/* Interactive Social Authentication Dialog */}
+      <SocialAuthModal
+        isOpen={isSocialModalOpen}
+        provider={activeSocialProvider}
+        initialRole={socialRole}
+        onClose={() => setIsSocialModalOpen(false)}
+        onSuccess={(role) => {
+          setIsSocialModalOpen(false);
+          redirectToDashboard(role);
+        }}
+      />
     </div>
   );
 };

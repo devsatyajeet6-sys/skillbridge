@@ -179,28 +179,167 @@ export const dataService = {
     return null;
   },
 
-  loginWithSocial: (provider: 'google' | 'facebook' | 'twitter', role: UserRole = 'student'): User => {
+  loginWithSocial: (
+    params: {
+      provider: 'google' | 'facebook' | 'twitter';
+      email?: string;
+      fullName?: string;
+      role?: UserRole;
+      avatarUrl?: string;
+      organizationName?: string;
+    } | 'google' | 'facebook' | 'twitter', 
+    roleFallback: UserRole = 'student'
+  ): User => {
+    let provider: 'google' | 'facebook' | 'twitter';
+    let email: string;
+    let fullName: string;
+    let role: UserRole;
+    let organizationName: string | undefined;
+
+    if (typeof params === 'string') {
+      provider = params;
+      role = roleFallback;
+      email = `${provider}.user@gmail.com`;
+      fullName = `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`;
+    } else {
+      provider = params.provider;
+      role = params.role || roleFallback;
+      email = params.email || `${provider}.user@gmail.com`;
+      fullName = params.fullName || `${provider.charAt(0).toUpperCase() + provider.slice(1)} User`;
+      organizationName = params.organizationName;
+    }
+
     const providerNames: Record<string, string> = {
       google: 'Google',
       facebook: 'Facebook',
       twitter: 'Twitter'
     };
-    const email = `${provider}.user@gmail.com`;
-    const fullName = `${providerNames[provider]} User`;
 
     let user = dataService.getAllUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
     if (!user) {
-      const res = dataService.registerUser({
-        email,
-        role,
+      // Create user as active with social verification
+      const newUser: User = {
+        id: `user-${Date.now()}`,
+        email: email,
+        role: role,
         full_name: fullName,
         phone: '+91 98765 43210',
-        extra: {
-          skills: ['Communication', 'Problem Solving', 'Data Analytics'],
-          institution_name: 'National Skilling Network'
-        }
-      });
-      user = res.user || dataService.getAllUsers()[0];
+        status: 'active',
+        created_at: new Date().toISOString()
+      };
+      
+      const updatedUsers = [...dataService.getAllUsers(), newUser];
+      setStorage(STORAGE_KEYS.USERS, updatedUsers);
+      user = newUser;
+
+      // Create role entity
+      if (role === 'student') {
+        const students = dataService.getAllStudents();
+        const newStudent: StudentProfile = {
+          id: `student-${Date.now()}`,
+          user_id: user.id,
+          full_name: fullName,
+          email: email,
+          phone: '+91 98765 43210',
+          education_level: 'B.Tech / Graduate',
+          institution_name: organizationName || 'National Skilling University',
+          graduation_year: 2025,
+          location: 'Bengaluru, Karnataka',
+          preferred_career_path: 'Data Analyst & Software Engineering',
+          preferred_locations: ['Bengaluru', 'Mumbai', 'Remote'],
+          employment_type: 'full_time',
+          share_profile_with_employers: true,
+          cv_score: 75,
+          job_readiness_score: 80,
+          skills: ['Python', 'SQL', 'Excel', 'Communication', 'Problem Solving'],
+          bio: `Verified candidate authenticated via ${providerNames[provider]}. Seeking full-time placement opportunities.`,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.STUDENTS, [...students, newStudent]);
+      } else if (role === 'company') {
+        const companies = dataService.getAllCompanies();
+        const newCompany: Company = {
+          id: `company-${Date.now()}`,
+          user_id: user.id,
+          company_name: organizationName || `${fullName}'s Tech Ventures`,
+          business_email: email,
+          industry: 'Technology & Cloud Solutions',
+          company_size: '51-200',
+          location: 'Bengaluru / Mumbai',
+          recruiter_name: fullName,
+          recruiter_phone: '+91 98765 43210',
+          description: `Enterprise recruiting partner authenticated via ${providerNames[provider]} SSO.`,
+          verification_status: 'verified',
+          subscription_tier: 'enterprise',
+          job_credits_remaining: 10,
+          created_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.COMPANIES, [...companies, newCompany]);
+
+        // Attach an active sample job for this company so the dashboard is immediately functional
+        const existingJobs = dataService.getAllJobs();
+        const sampleJob: Job = {
+          id: `job-${Date.now()}`,
+          company_id: newCompany.id,
+          company_name: newCompany.company_name,
+          title: 'Associate Software & Data Trainee',
+          department: 'Engineering & Analytics',
+          category: 'Software Developer',
+          location: 'Bengaluru',
+          work_mode: 'hybrid',
+          experience_level: 'entry',
+          salary_min: 500000,
+          salary_max: 800000,
+          salary_currency: 'INR',
+          description: 'Exciting entry-level opening for graduates with foundational skills in SQL, Python, and data analysis.',
+          responsibilities: ['Collaborate with engineering teams', 'Build data pipelines and dashboards', 'Perform code reviews'],
+          requirements: ['Degree in Science/Engg or relevant bootcamp certificate'],
+          required_skills: ['SQL', 'Python', 'Git', 'Communication'],
+          preferred_skills: ['React', 'Excel'],
+          qualifications: ['B.Tech, BCA, B.Sc or Equivalent'],
+          is_active: true,
+          moderation_status: 'approved',
+          views_count: 142,
+          applicants_count: 12,
+          created_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.JOBS, [...existingJobs, sampleJob]);
+      } else if (role === 'skill_centre') {
+        const centres = dataService.getAllSkillCentres();
+        const newCentre: SkillCentre = {
+          id: `centre-${Date.now()}`,
+          user_id: user.id,
+          centre_name: organizationName || `${fullName} Training Institute`,
+          contact_email: email,
+          phone: '+91 98765 43210',
+          location: 'Bengaluru',
+          delivery_modes: ['live_online', 'offline', 'recorded'],
+          training_categories: ['Data Analytics', 'Software Development', 'Finance'],
+          verification_status: 'verified',
+          commission_rate: 15,
+          bio: `Accredited Training Partner authenticated via ${providerNames[provider]} SSO.`,
+          created_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.SKILL_CENTRES, [...centres, newCentre]);
+      } else if (role === 'institution') {
+        const institutions = dataService.getAllInstitutions();
+        const newInst: Institution = {
+          id: `inst-${Date.now()}`,
+          user_id: user.id,
+          institution_name: organizationName || `${fullName} Institute of Technology`,
+          institution_type: 'college',
+          address: 'Main Campus, Tech Enclave',
+          contact_person: fullName,
+          institutional_email: email,
+          phone: '+91 98765 43210',
+          student_count_expected: 450,
+          billing_terms: 'net30',
+          verification_status: 'verified',
+          created_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.INSTITUTIONS, [...institutions, newInst]);
+      }
     } else {
       dataService.setCurrentUser(user);
     }
@@ -209,7 +348,7 @@ export const dataService = {
       action: 'SOCIAL_LOGIN',
       target_type: 'user',
       target_id: user.id,
-      details: `User logged in using free ${providerNames[provider]} Single Sign-On`
+      details: `User logged in using ${providerNames[provider]} Single Sign-On`
     });
 
     return user;
