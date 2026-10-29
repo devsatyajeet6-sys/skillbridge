@@ -179,6 +179,42 @@ export const dataService = {
     return null;
   },
 
+  loginWithSocial: (provider: 'google' | 'facebook' | 'twitter', role: UserRole = 'student'): User => {
+    const providerNames: Record<string, string> = {
+      google: 'Google',
+      facebook: 'Facebook',
+      twitter: 'Twitter'
+    };
+    const email = `${provider}.user@gmail.com`;
+    const fullName = `${providerNames[provider]} User`;
+
+    let user = dataService.getAllUsers().find(u => u.email.toLowerCase() === email.toLowerCase());
+    if (!user) {
+      const res = dataService.registerUser({
+        email,
+        role,
+        full_name: fullName,
+        phone: '+91 98765 43210',
+        extra: {
+          skills: ['Communication', 'Problem Solving', 'Data Analytics'],
+          institution_name: 'National Skilling Network'
+        }
+      });
+      user = res.user || dataService.getAllUsers()[0];
+    } else {
+      dataService.setCurrentUser(user);
+    }
+
+    dataService.logAudit({
+      action: 'SOCIAL_LOGIN',
+      target_type: 'user',
+      target_id: user.id,
+      details: `User logged in using free ${providerNames[provider]} Single Sign-On`
+    });
+
+    return user;
+  },
+
   // REGISTER
   registerUser: (userData: {
     email: string;
