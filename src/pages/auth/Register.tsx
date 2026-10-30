@@ -14,6 +14,7 @@ import {
 import { dataService } from '../../services/dataService';
 import { UserRole } from '../../types';
 import { SocialAuthModal } from '../../components/auth/SocialAuthModal';
+import { validateEmail } from '../../utils/validation';
 
 export const Register: React.FC = () => {
   const navigate = useNavigate();
@@ -71,6 +72,12 @@ export const Register: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      setError(emailCheck.error || 'Please enter a valid email address.');
+      return;
+    }
 
     if (selectedRole === 'student' && isMinor && !guardianConsent) {
       setError('Guardian consent is required for students under the age of 18.');

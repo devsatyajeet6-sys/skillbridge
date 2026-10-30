@@ -37,6 +37,7 @@ import {
   INITIAL_AUDIT_LOGS,
   INITIAL_PLATFORM_CONFIG
 } from './mockData';
+import { validateEmail } from '../utils/validation';
 
 const STORAGE_KEYS = {
   CURRENT_USER: 'skillbridge_current_user',
@@ -249,10 +250,10 @@ export const dataService = {
           preferred_locations: ['Bengaluru', 'Mumbai', 'Remote'],
           employment_type: 'full_time',
           share_profile_with_employers: true,
-          cv_score: 75,
-          job_readiness_score: 80,
-          skills: ['Python', 'SQL', 'Excel', 'Communication', 'Problem Solving'],
-          bio: `Verified candidate authenticated via ${providerNames[provider]}. Seeking full-time placement opportunities.`,
+          cv_score: 0,
+          job_readiness_score: 0,
+          skills: [],
+          bio: `Candidate authenticated via ${providerNames[provider]}. Upload your CV to calculate your scores and match vacancies.`,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -377,10 +378,10 @@ export const dataService = {
             preferred_locations: ['Bengaluru', 'Mumbai', 'Remote'],
             employment_type: 'full_time',
             share_profile_with_employers: true,
-            cv_score: 75,
-            job_readiness_score: 80,
-            skills: ['Python', 'SQL', 'Excel', 'Communication', 'Problem Solving'],
-            bio: `Verified candidate authenticated via ${providerNames[provider]}. Seeking full-time placement opportunities.`,
+            cv_score: 0,
+            job_readiness_score: 0,
+            skills: [],
+            bio: `Candidate authenticated via ${providerNames[provider]}. Upload your CV to calculate your scores and match vacancies.`,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
@@ -423,6 +424,11 @@ export const dataService = {
     // Specific extra attributes
     extra?: any;
   }): { success: boolean; user?: User; message?: string } => {
+    const emailCheck = validateEmail(userData.email);
+    if (!emailCheck.isValid) {
+      return { success: false, message: emailCheck.error || 'Invalid email address.' };
+    }
+
     const users = dataService.getAllUsers();
     if (users.some(u => u.email.toLowerCase() === userData.email.toLowerCase())) {
       return { success: false, message: 'An account with this email already exists.' };
@@ -462,10 +468,10 @@ export const dataService = {
         preferred_locations: userData.extra?.preferred_locations || ['Bengaluru', 'Remote'],
         employment_type: userData.extra?.employment_type || 'full_time',
         share_profile_with_employers: true,
-        cv_score: 50,
-        job_readiness_score: 55,
-        skills: userData.extra?.skills || ['Excel', 'Communication'],
-        bio: userData.extra?.bio || 'Recent graduate enthusiastic about skilling and placement opportunities.',
+        cv_score: 0,
+        job_readiness_score: 0,
+        skills: userData.extra?.skills || [],
+        bio: userData.extra?.bio || 'Candidate profile on SkillBridge. Upload your CV to calculate your job readiness score.',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -579,10 +585,10 @@ export const dataService = {
           preferred_locations: ['Bengaluru', 'Mumbai', 'Remote'],
           employment_type: 'full_time',
           share_profile_with_employers: true,
-          cv_score: 75,
-          job_readiness_score: 80,
-          skills: ['Python', 'SQL', 'Excel', 'Communication', 'Problem Solving'],
-          bio: 'Verified student candidate profile.',
+          cv_score: 0,
+          job_readiness_score: 0,
+          skills: [],
+          bio: 'Student candidate profile. Upload your CV to calculate your job readiness score.',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };

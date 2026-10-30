@@ -20,6 +20,20 @@ export function calculateJobMatch(
   job: Job,
   allCourses: Course[]
 ): SkillMatchResult {
+  const hasCV = Boolean(student.cv_name || student.cv_url || student.cv_text);
+  
+  if (!hasCV) {
+    return {
+      job,
+      matchScore: 0,
+      possessedSkills: [],
+      missingSkills: job.required_skills || [],
+      recommendedCourses: [],
+      eligibilityMet: false,
+      explanation: 'Please upload your CV document to calculate matching score and eligibility for this position.'
+    };
+  }
+
   const studentSkills = (student.skills || []).map(s => s.trim().toLowerCase());
   const requiredSkills = (job.required_skills || []).map(s => s.trim().toLowerCase());
 
@@ -87,6 +101,20 @@ export function calculateCVScore(student: Partial<StudentProfile>): {
   score: number;
   breakdown: { label: string; score: number; max: number; tip: string }[];
 } {
+  const hasCV = Boolean(student.cv_name || student.cv_url || student.cv_text);
+  if (!hasCV) {
+    return {
+      score: 0,
+      breakdown: [
+        { label: 'CV Document Upload', score: 0, max: 20, tip: 'Attach your CV (PDF/DOCX) to begin scoring.' },
+        { label: 'Technical Skills Portfolio', score: 0, max: 25, tip: 'Skills will be extracted from your CV.' },
+        { label: 'Contact & Verification', score: 0, max: 15, tip: 'Verify your contact details upon CV upload.' },
+        { label: 'Education & Academic History', score: 0, max: 20, tip: 'Academic history parsed from your CV.' },
+        { label: 'Professional Bio & Career Objective', score: 0, max: 20, tip: 'Career summary derived from your profile.' }
+      ]
+    };
+  }
+
   const breakdown: { label: string; score: number; max: number; tip: string }[] = [];
 
   // 1. Contact & Identity (15 pts)

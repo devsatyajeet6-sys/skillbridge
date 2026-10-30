@@ -4,6 +4,7 @@ import { GraduationCap, Lock, Mail, ArrowRight, ShieldCheck, UserCheck } from 'l
 import { dataService } from '../../services/dataService';
 import { UserRole } from '../../types';
 import { SocialAuthModal } from '../../components/auth/SocialAuthModal';
+import { validateEmail } from '../../utils/validation';
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
@@ -23,6 +24,12 @@ export const Login: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const emailCheck = validateEmail(email);
+    if (!emailCheck.isValid) {
+      setError(emailCheck.error || 'Please enter a valid email address.');
+      return;
+    }
 
     const users = dataService.getAllUsers();
     const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());

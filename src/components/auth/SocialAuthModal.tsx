@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { UserRole, User } from '../../types';
 import { dataService } from '../../services/dataService';
+import { validateEmail } from '../../utils/validation';
 
 interface SocialAuthModalProps {
   isOpen: boolean;
@@ -106,8 +107,10 @@ export const SocialAuthModal: React.FC<SocialAuthModalProps> = ({
       setError('Please enter your full name to proceed with login.');
       return;
     }
-    if (!trimmedEmail || !trimmedEmail.includes('@')) {
-      setError('Please enter a valid email address.');
+    
+    const emailCheck = validateEmail(trimmedEmail);
+    if (!emailCheck.isValid) {
+      setError(emailCheck.error || 'Please enter a valid email address.');
       return;
     }
 

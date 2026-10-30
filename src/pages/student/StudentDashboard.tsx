@@ -66,6 +66,17 @@ export const StudentDashboard: React.FC = () => {
     } else {
       st = dataService.getAllStudents()[0] || null;
     }
+
+    // Auto-clean stale legacy scores if student does not actually have a CV uploaded
+    if (st && !st.cv_name && !st.cv_url && !st.cv_text) {
+      if (st.cv_score !== 0 || st.job_readiness_score !== 0) {
+        st = dataService.updateStudentProfile(st.id, {
+          cv_score: 0,
+          job_readiness_score: 0
+        }) || st;
+      }
+    }
+
     setStudent(st);
     if (st) {
       setAllJobs(dataService.getAllJobs().filter(j => j.moderation_status === 'approved' && j.is_active));
@@ -93,10 +104,17 @@ export const StudentDashboard: React.FC = () => {
   }
 
   // Calculated Metrics
+  const hasUploadedCV = Boolean(student.cv_name || student.cv_url || student.cv_text);
   const cvScoreData = calculateCVScore(student);
   const jobMatches = allJobs.map(j => calculateJobMatch(student, j, allCourses));
-  const highMatchJobs = jobMatches.filter(m => m.matchScore >= 70);
-  const eligibleJobs = jobMatches.filter(m => m.eligibilityMet);
+  jobMatches.sort((a, b) => b.matchScore - a.matchScore);
+
+  // Genuinely matched jobs: only calculated and visible when candidate has uploaded a CV
+  const matchedJobs = hasUploadedCV 
+    ? jobMatches.filter(m => m.matchScore >= 50 || m.eligibilityMet || m.possessedSkills.length > 0)
+    : [];
+  const highMatchJobs = hasUploadedCV ? jobMatches.filter(m => m.matchScore >= 70) : [];
+  const eligibleJobs = hasUploadedCV ? jobMatches.filter(m => m.eligibilityMet) : [];
 
   // Collect all missing skills across active jobs
   const missingSkillsSet = new Set<string>();
@@ -123,25 +141,54 @@ export const StudentDashboard: React.FC = () => {
 
     setIsParsingCV(true);
     // Simulate reading text from resume
-    const sampleResumeText = `Rahul Sharma. B.Tech Computer Science graduate. Strong technical competencies in SQL relational schemas, Excel modeling, Python data scripts, Tableau visualizations, Git versioning, and Communication. Capstone project: Power BI transactional analytics dashboard.`;
+    const candidateName = currentUser?.full_name || student.full_name;
+    const sampleResumeText = `${candidateName}. B.Tech Computer Science graduate. Strong technical competencies in SQL relational schemas, Excel modeling, Python data scripts, Tableau visualizations, Git versioning, and Communication. Capstone project: Power BI transactional analytics dashboard.`;
 
     const result = await parseCVContent(sampleResumeText);
     
     // Merge extracted skills
     const mergedSkills = Array.from(new Set([...student.skills, ...result.extractedSkills]));
+    const calculatedCV = calculateCVScore({
+      ...student,
+      cv_name: file.name,
+      cv_url: `/demo-resumes/${file.name}`,
+      cv_text: sampleResumeText,
+      skills: mergedSkills
+    });
+
+    const readinessScore = Math.min(100, Math.max(68, Math.round(calculatedCV.score * 0.95)));
+
     const updated = dataService.updateStudentProfile(student.id, {
       cv_name: file.name,
       cv_url: `/demo-resumes/${file.name}`,
       cv_text: sampleResumeText,
       skills: mergedSkills,
-      cv_score: Math.min(100, student.cv_score + 15),
-      job_readiness_score: Math.min(100, student.job_readiness_score + 10)
+      cv_score: calculatedCV.score,
+      job_readiness_score: readinessScore
     });
 
     if (updated) setStudent(updated);
     setIsParsingCV(false);
-    setCvSuccessMsg(`CV parsed! ${result.extractedSkills.length} skills extracted and added to your profile.`);
+    setCvSuccessMsg(`CV uploaded successfully! Extracted ${result.extractedSkills.length} skills and computed matching vacancies.`);
     setTimeout(() => setCvSuccessMsg(''), 4000);
+  };
+
+  const handleRemoveCV = () => {
+    if (window.confirm('Are you sure you want to remove your uploaded CV? Your CV score, readiness score, and job match count will be reset.')) {
+      const updated = dataService.updateStudentProfile(student.id, {
+        cv_name: undefined,
+        cv_url: undefined,
+        cv_text: undefined,
+        cv_score: 0,
+        job_readiness_score: 0,
+        skills: []
+      });
+      if (updated) {
+        setStudent(updated);
+        setCvSuccessMsg('CV document removed successfully.');
+        setTimeout(() => setCvSuccessMsg(''), 4000);
+      }
+    }
   };
 
   const handleClaimRefund = () => {
@@ -181,17 +228,27 @@ export const StudentDashboard: React.FC = () => {
           {/* Readiness Indicators */}
           <div className="flex items-center gap-4 self-stretch md:self-auto justify-around md:justify-end border-t md:border-t-0 pt-4 md:pt-0 border-slate-100">
             <div className="text-center px-4">
-              <div className="text-2xl font-black text-indigo-600">{cvScoreData.score}/100</div>
-              <div className="text-[10px] uppercase font-bold text-slate-400">CV Score</div>
+              <div className="text-2xl font-black text-indigo-600">
+                {hasUploadedCV ? `${student.cv_score || cvScoreData.score}/100` : '--'}
+              </div>
+              <div className="text-[10px] uppercase font-bold text-slate-400">
+                {hasUploadedCV ? 'CV Score' : 'Upload CV'}
+              </div>
             </div>
             <div className="h-8 w-px bg-slate-200"></div>
             <div className="text-center px-4">
-              <div className="text-2xl font-black text-emerald-600">{student.job_readiness_score}%</div>
-              <div className="text-[10px] uppercase font-bold text-slate-400">Job Readiness</div>
+              <div className="text-2xl font-black text-emerald-600">
+                {hasUploadedCV ? `${student.job_readiness_score}%` : '--'}
+              </div>
+              <div className="text-[10px] uppercase font-bold text-slate-400">
+                {hasUploadedCV ? 'Job Readiness' : 'Requires CV'}
+              </div>
             </div>
             <div className="h-8 w-px bg-slate-200"></div>
             <div className="text-center px-4">
-              <div className="text-2xl font-black text-slate-900">{highMatchJobs.length}</div>
+              <div className="text-2xl font-black text-slate-900">
+                {hasUploadedCV ? matchedJobs.length : 0}
+              </div>
               <div className="text-[10px] uppercase font-bold text-slate-400">Matched Jobs</div>
             </div>
           </div>
@@ -213,7 +270,7 @@ export const StudentDashboard: React.FC = () => {
               activeTab === 'profile' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            CV & Profile ({student.skills.length} skills)
+            CV & Profile ({hasUploadedCV ? student.skills.length : 0} skills)
           </button>
           <button
             onClick={() => setActiveTab('jobs')}
@@ -221,7 +278,7 @@ export const StudentDashboard: React.FC = () => {
               activeTab === 'jobs' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200/60'
             }`}
           >
-            Matched Jobs ({jobMatches.length})
+            Matched Jobs ({hasUploadedCV ? matchedJobs.length : 0})
           </button>
           <button
             onClick={() => setActiveTab('skills')}
@@ -385,35 +442,55 @@ export const StudentDashboard: React.FC = () => {
               <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-sm text-slate-900">Top Vacancy Matches</h3>
-                  <button onClick={() => setActiveTab('jobs')} className="text-xs text-indigo-600 font-semibold hover:underline">
-                    View All ({allJobs.length})
-                  </button>
+                  {hasUploadedCV && (
+                    <button onClick={() => setActiveTab('jobs')} className="text-xs text-indigo-600 font-semibold hover:underline">
+                      View All ({matchedJobs.length})
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-3">
-                  {jobMatches.slice(0, 3).map(({ job, matchScore, missingSkills }) => (
-                    <div key={job.id} className="p-3.5 rounded-xl border border-slate-200 hover:border-indigo-400 transition-colors flex items-center justify-between">
-                      <div>
-                        <h4 className="font-bold text-xs text-slate-900">{job.title}</h4>
-                        <div className="text-[11px] text-slate-500 mt-0.5">{job.company_name} • {job.location}</div>
-                        {missingSkills.length > 0 && (
-                          <div className="text-[10px] text-rose-600 mt-1">
-                            Missing: {missingSkills.join(', ')}
-                          </div>
-                        )}
+                {!hasUploadedCV ? (
+                  <div className="p-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
+                    <FileText className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="text-xs font-bold text-slate-700">No Matched Jobs Yet</p>
+                    <p className="text-[11px] text-slate-500">Upload your CV to calculate your scores and unlock matching vacancies.</p>
+                    <button
+                      onClick={() => setActiveTab('profile')}
+                      className="mt-2 px-3.5 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 transition-colors"
+                    >
+                      Upload CV Document
+                    </button>
+                  </div>
+                ) : matchedJobs.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500 bg-slate-50 rounded-xl">
+                    No active jobs matching your profile yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {matchedJobs.slice(0, 3).map(({ job, matchScore, missingSkills }) => (
+                      <div key={job.id} className="p-3.5 rounded-xl border border-slate-200 hover:border-indigo-400 transition-colors flex items-center justify-between">
+                        <div>
+                          <h4 className="font-bold text-xs text-slate-900">{job.title}</h4>
+                          <div className="text-[11px] text-slate-500 mt-0.5">{job.company_name} • {job.location}</div>
+                          {missingSkills.length > 0 && (
+                            <div className="text-[10px] text-rose-600 mt-1">
+                              Missing: {missingSkills.join(', ')}
+                            </div>
+                          )}
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-black text-indigo-600">{matchScore}%</div>
+                          <button
+                            onClick={() => setActiveTab('jobs')}
+                            className="mt-1 text-[11px] text-indigo-600 font-semibold hover:underline"
+                          >
+                            View Job →
+                          </button>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <div className="text-sm font-black text-indigo-600">{matchScore}%</div>
-                        <button
-                          onClick={() => setActiveTab('jobs')}
-                          className="mt-1 text-[11px] text-indigo-600 font-semibold hover:underline"
-                        >
-                          View Job →
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
 
             </div>
@@ -452,15 +529,36 @@ export const StudentDashboard: React.FC = () => {
                 </div>
               )}
 
-              {student.cv_name && (
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2 text-slate-700 font-medium">
-                    <FileText className="w-4 h-4 text-indigo-600" />
-                    <span>Current CV: <strong>{student.cv_name}</strong></span>
+              {student.cv_name ? (
+                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs gap-3">
+                  <div className="flex items-center gap-2 text-slate-700 font-medium truncate">
+                    <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span className="truncate">Current CV: <strong>{student.cv_name}</strong></span>
                   </div>
-                  <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-100 px-2 py-0.5 rounded">
-                    Verified Active
-                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[11px] text-emerald-600 font-semibold bg-emerald-100 px-2 py-0.5 rounded">
+                      Verified Active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCV}
+                      className="px-2.5 py-1 text-rose-600 hover:text-white hover:bg-rose-600 border border-rose-200 hover:border-rose-600 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-sm"
+                      title="Remove uploaded CV"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Remove CV</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div>
+                    <span className="font-bold">No CV uploaded yet.</span>
+                    <p className="text-[11px] text-amber-700 mt-0.5">
+                      Upload your CV document above in PDF or DOCX format to extract skills, compute your CV score, and see matched vacancies.
+                    </p>
+                  </div>
                 </div>
               )}
 
@@ -611,19 +709,25 @@ export const StudentDashboard: React.FC = () => {
             {/* CV Completeness Breakdown */}
             <div className="bg-slate-100 rounded-3xl p-6 border border-slate-200 space-y-3">
               <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700">
-                CV Score Breakdown ({cvScoreData.score} / 100)
+                CV Score Breakdown ({hasUploadedCV ? `${cvScoreData.score} / 100` : 'Pending CV Upload'})
               </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                {cvScoreData.breakdown.map((item, idx) => (
-                  <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200">
-                    <div className="flex justify-between font-bold text-slate-800">
-                      <span>{item.label}</span>
-                      <span>{item.score}/{item.max}</span>
+              {!hasUploadedCV ? (
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 text-xs text-slate-500">
+                  Upload your CV in the document section above to view your personalized score breakdown across technical skills, contact verification, academic history, and career alignment.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  {cvScoreData.breakdown.map((item, idx) => (
+                    <div key={idx} className="bg-white p-3 rounded-xl border border-slate-200">
+                      <div className="flex justify-between font-bold text-slate-800">
+                        <span>{item.label}</span>
+                        <span>{item.score}/{item.max}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1">{item.tip}</p>
                     </div>
-                    <p className="text-[11px] text-slate-500 mt-1">{item.tip}</p>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </div>
 
           </div>
@@ -636,118 +740,159 @@ export const StudentDashboard: React.FC = () => {
               <div>
                 <h3 className="text-xl font-bold text-slate-900">Vacancies Matched to Your Profile</h3>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  Calculated against your verified skills: {student.skills.join(', ')}
+                  {hasUploadedCV && student.skills.length > 0 
+                    ? `Calculated against your verified skills: ${student.skills.join(', ')}`
+                    : 'Upload your CV to calculate job matches tailored to your profile.'
+                  }
                 </p>
               </div>
             </div>
 
-            <div className="space-y-4">
-              {jobMatches.map(({ job, matchScore, possessedSkills, missingSkills, eligibilityMet, explanation }) => {
-                const userApp = applications.find(a => a.job_id === job.id);
+            {!hasUploadedCV ? (
+              <div className="bg-white p-8 sm:p-12 rounded-3xl border border-slate-200 shadow-sm text-center max-w-xl mx-auto space-y-4">
+                <div className="w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 mx-auto flex items-center justify-center">
+                  <Upload className="w-8 h-8" />
+                </div>
+                <h3 className="text-lg font-bold text-slate-900">Upload Your CV to Unlock Matched Jobs</h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Job match scores, readiness ratings, and skill alignment are computed directly from your uploaded resume document.
+                </p>
+                <div className="pt-2">
+                  <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl cursor-pointer shadow-md shadow-indigo-600/20 transition-all">
+                    <Upload className="w-4 h-4" />
+                    <span>{isParsingCV ? 'Extracting Skills...' : 'Upload CV Document Now'}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.docx,.txt"
+                      onChange={handleSimulateCVUpload}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+            ) : matchedJobs.length === 0 ? (
+              <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm text-center space-y-3">
+                <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
+                <h4 className="text-sm font-bold text-slate-800">No Matched Jobs Found</h4>
+                <p className="text-xs text-slate-500">
+                  None of the active vacancies currently meet your skills profile. Try adding more skills in the CV & Profile tab.
+                </p>
+                <button
+                  onClick={() => setActiveTab('profile')}
+                  className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700"
+                >
+                  Manage Skills & Profile
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {matchedJobs.map(({ job, matchScore, possessedSkills, missingSkills, eligibilityMet, explanation }) => {
+                  const userApp = applications.find(a => a.job_id === job.id);
 
-                return (
-                  <div key={job.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-lg font-bold text-slate-900">{job.title}</h4>
-                          <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded">
-                            {job.category}
+                  return (
+                    <div key={job.id} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-lg font-bold text-slate-900">{job.title}</h4>
+                            <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded">
+                              {job.category}
+                            </span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1">
+                            <strong>{job.company_name}</strong> • {job.location} ({job.work_mode}) • {job.experience_level} level
+                          </div>
+                        </div>
+
+                        <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center">
+                          <div className={`text-2xl font-black ${
+                            matchScore >= 75 ? 'text-emerald-600' : matchScore >= 50 ? 'text-indigo-600' : 'text-amber-600'
+                          }`}>
+                            {matchScore}%
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            Job Match Score
                           </span>
                         </div>
-                        <div className="text-xs text-slate-500 mt-1">
-                          <strong>{job.company_name}</strong> • {job.location} ({job.work_mode}) • {job.experience_level} level
+                      </div>
+
+                      {/* Skill Comparison Breakdown */}
+                      <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="font-bold text-emerald-800 text-[11px] block mb-1">
+                            Skills You Possess ({possessedSkills.length}):
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {possessedSkills.length > 0 ? (
+                              possessedSkills.map(s => <SkillBadge key={s} skill={s} variant="matched" />)
+                            ) : (
+                              <span className="text-slate-400 text-[11px]">None recorded</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="font-bold text-rose-800 text-[11px] block mb-1">
+                            Missing Skills for this Vacancy ({missingSkills.length}):
+                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            {missingSkills.length > 0 ? (
+                              missingSkills.map(s => <SkillBadge key={s} skill={s} variant="missing" />)
+                            ) : (
+                              <span className="text-emerald-600 text-[11px] font-medium flex items-center gap-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> 100% matched!
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
-                      <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center">
-                        <div className={`text-2xl font-black ${
-                          matchScore >= 75 ? 'text-emerald-600' : matchScore >= 50 ? 'text-indigo-600' : 'text-amber-600'
-                        }`}>
-                          {matchScore}%
-                        </div>
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                          Job Match Score
-                        </span>
+                      {/* Application Status / Apply Action */}
+                      <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                        <p className="text-[10px] text-slate-400 max-w-md">
+                          {explanation}
+                        </p>
+
+                        {userApp ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-slate-500">Status:</span>
+                            <StatusBadge status={userApp.status} />
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              dataService.createApplication({
+                                job_id: job.id,
+                                job_title: job.title,
+                                company_id: job.company_id,
+                                company_name: job.company_name,
+                                student_id: student.id,
+                                student_name: student.full_name,
+                                student_email: student.email,
+                                student_phone: student.phone,
+                                education: `${student.education_level} (${student.graduation_year})`,
+                                cv_url: student.cv_url,
+                                match_score: matchScore,
+                                missing_skills: missingSkills,
+                                possessed_skills: possessedSkills,
+                                status: 'applied',
+                                recruiter_notes: 'Applied from matched jobs tab.'
+                              });
+                              alert(`Application submitted to ${job.company_name}!`);
+                            }}
+                            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-colors"
+                          >
+                            Submit Application
+                          </button>
+                        )}
                       </div>
+
                     </div>
-
-                    {/* Skill Comparison Breakdown */}
-                    <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-                      <div>
-                        <span className="font-bold text-emerald-800 text-[11px] block mb-1">
-                          Skills You Possess ({possessedSkills.length}):
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          {possessedSkills.length > 0 ? (
-                            possessedSkills.map(s => <SkillBadge key={s} skill={s} variant="matched" />)
-                          ) : (
-                            <span className="text-slate-400 text-[11px]">None recorded</span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div>
-                        <span className="font-bold text-rose-800 text-[11px] block mb-1">
-                          Missing Skills for this Vacancy ({missingSkills.length}):
-                        </span>
-                        <div className="flex flex-wrap gap-1">
-                          {missingSkills.length > 0 ? (
-                            missingSkills.map(s => <SkillBadge key={s} skill={s} variant="missing" />)
-                          ) : (
-                            <span className="text-emerald-600 text-[11px] font-medium flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> 100% matched!
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Application Status / Apply Action */}
-                    <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                      <p className="text-[10px] text-slate-400 max-w-md">
-                        {explanation}
-                      </p>
-
-                      {userApp ? (
-                        <div className="flex items-center gap-2">
-                          <span className="text-slate-500">Status:</span>
-                          <StatusBadge status={userApp.status} />
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            dataService.createApplication({
-                              job_id: job.id,
-                              job_title: job.title,
-                              company_id: job.company_id,
-                              company_name: job.company_name,
-                              student_id: student.id,
-                              student_name: student.full_name,
-                              student_email: student.email,
-                              student_phone: student.phone,
-                              education: `${student.education_level} (${student.graduation_year})`,
-                              cv_url: student.cv_url,
-                              match_score: matchScore,
-                              missing_skills: missingSkills,
-                              possessed_skills: possessedSkills,
-                              status: 'applied',
-                              recruiter_notes: 'Applied from matched jobs tab.'
-                            });
-                            alert(`Application submitted to ${job.company_name}!`);
-                          }}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-sm transition-colors"
-                        >
-                          Submit Application
-                        </button>
-                      )}
-                    </div>
-
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
