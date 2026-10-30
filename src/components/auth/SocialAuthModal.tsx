@@ -62,9 +62,9 @@ export const SocialAuthModal: React.FC<SocialAuthModalProps> = ({
   };
 
   const handleConfirmLogin = async (useDefault = true) => {
-    const finalName = useDefault ? defaultAccount.name : fullName;
-    const finalEmail = useDefault ? defaultAccount.email : email;
-    const finalOrg = useDefault ? defaultAccount.orgName : orgName;
+    const finalName = (useDefault ? defaultAccount.name : fullName).trim();
+    const finalEmail = (useDefault ? defaultAccount.email : email).trim();
+    const finalOrg = (useDefault ? defaultAccount.orgName : orgName).trim();
 
     setIsLoading(true);
     setLoadingText(

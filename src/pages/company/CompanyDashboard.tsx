@@ -35,9 +35,10 @@ export const CompanyDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'jobs' | 'applicants' | 'interviews' | 'billing'>('overview');
   
   const currentUser = dataService.getCurrentUser();
-  const [company, setCompany] = useState<Company | null>(
-    currentUser ? (dataService.getCompanyByUserId(currentUser.id) || dataService.getAllCompanies()[0]) : dataService.getAllCompanies()[0]
-  );
+  const [company, setCompany] = useState<Company | null>(() => {
+    if (!currentUser) return dataService.getAllCompanies()[0] || null;
+    return dataService.getCompanyByUserId(currentUser.id) || null;
+  });
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
@@ -69,7 +70,7 @@ export const CompanyDashboard: React.FC = () => {
 
   const refreshData = () => {
     const user = dataService.getCurrentUser();
-    const comp = user ? (dataService.getCompanyByUserId(user.id) || dataService.getAllCompanies()[0]) : dataService.getAllCompanies()[0];
+    const comp = user ? (dataService.getCompanyByUserId(user.id) || null) : (dataService.getAllCompanies()[0] || null);
     setCompany(comp);
     if (comp) {
       const compJobs = dataService.getAllJobs().filter(j => j.company_id === comp.id);

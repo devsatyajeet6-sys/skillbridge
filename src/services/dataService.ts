@@ -341,8 +341,68 @@ export const dataService = {
         setStorage(STORAGE_KEYS.INSTITUTIONS, [...institutions, newInst]);
       }
     } else {
-      dataService.setCurrentUser(user);
+      // User exists with this email: synchronize full_name, role, and active status
+      const updatedUser: User = {
+        ...user,
+        full_name: fullName || user.full_name,
+        role: role || user.role,
+        status: 'active'
+      };
+      user = updatedUser;
+      const updatedUsers = dataService.getAllUsers().map(u => u.id === user!.id ? user! : u);
+      setStorage(STORAGE_KEYS.USERS, updatedUsers);
+
+      // Also ensure role profile is present & updated
+      if (role === 'student' || user.role === 'student') {
+        const students = dataService.getAllStudents();
+        const existingSt = students.find(s => s.user_id === user!.id || s.email.toLowerCase() === email.toLowerCase());
+        if (existingSt) {
+          dataService.updateStudentProfile(existingSt.id, {
+            user_id: user.id,
+            full_name: fullName || existingSt.full_name,
+            email: email
+          });
+        } else {
+          const newStudent: StudentProfile = {
+            id: `student-${Date.now()}`,
+            user_id: user.id,
+            full_name: fullName,
+            email: email,
+            phone: user.phone || '+91 98765 43210',
+            education_level: 'B.Tech / Graduate',
+            institution_name: organizationName || 'National Skilling University',
+            graduation_year: 2025,
+            location: 'Bengaluru, Karnataka',
+            preferred_career_path: 'Data Analyst & Software Engineering',
+            preferred_locations: ['Bengaluru', 'Mumbai', 'Remote'],
+            employment_type: 'full_time',
+            share_profile_with_employers: true,
+            cv_score: 75,
+            job_readiness_score: 80,
+            skills: ['Python', 'SQL', 'Excel', 'Communication', 'Problem Solving'],
+            bio: `Verified candidate authenticated via ${providerNames[provider]}. Seeking full-time placement opportunities.`,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+          setStorage(STORAGE_KEYS.STUDENTS, [...students, newStudent]);
+        }
+      } else if (role === 'company') {
+        const companies = dataService.getAllCompanies();
+        const existingComp = companies.find(c => c.user_id === user!.id || c.business_email.toLowerCase() === email.toLowerCase());
+        if (existingComp) {
+          const updatedCompanies = companies.map(c => c.id === existingComp.id ? {
+            ...c,
+            user_id: user!.id,
+            recruiter_name: fullName || c.recruiter_name,
+            company_name: organizationName || c.company_name
+          } : c);
+          setStorage(STORAGE_KEYS.COMPANIES, updatedCompanies);
+        }
+      }
     }
+
+    // CRITICAL: Always set active current user session for social logins
+    dataService.setCurrentUser(user);
 
     dataService.logAudit({
       action: 'SOCIAL_LOGIN',
@@ -476,7 +536,61 @@ export const dataService = {
     return getStorage<StudentProfile[]>(STORAGE_KEYS.STUDENTS, []);
   },
   getStudentByUserId: (userId: string): StudentProfile | undefined => {
-    return dataService.getAllStudents().find(s => s.user_id === userId);
+    const students = dataService.getAllStudents();
+    let st = students.find(s => s.user_id === userId);
+    if (st) return st;
+
+    // Check by user email or user full_name fallback
+    const user = dataService.getUserById(userId) || (dataService.getCurrentUser()?.id === userId ? dataService.getCurrentUser() : null);
+    if (user) {
+      if (user.email) {
+        st = students.find(s => s.email.toLowerCase() === user.email.toLowerCase());
+        if (st) {
+          st = { ...st, user_id: user.id, full_name: user.full_name || st.full_name };
+          const updated = students.map(s => s.id === st!.id ? st! : s);
+          setStorage(STORAGE_KEYS.STUDENTS, updated);
+          return st;
+        }
+      }
+
+      if (user.full_name) {
+        st = students.find(s => s.full_name.toLowerCase() === user.full_name.toLowerCase());
+        if (st) {
+          st = { ...st, user_id: user.id, email: user.email || st.email };
+          const updated = students.map(s => s.id === st!.id ? st! : s);
+          setStorage(STORAGE_KEYS.STUDENTS, updated);
+          return st;
+        }
+      }
+
+      // If user is a student and still no profile exists, create one immediately
+      if (user.role === 'student') {
+        const newStudent: StudentProfile = {
+          id: `student-${Date.now()}`,
+          user_id: user.id,
+          full_name: user.full_name || 'Student Candidate',
+          email: user.email,
+          phone: user.phone || '+91 98765 43210',
+          education_level: 'B.Tech / Graduate',
+          institution_name: 'National Skilling University',
+          graduation_year: 2025,
+          location: 'Bengaluru, Karnataka',
+          preferred_career_path: 'Data Analyst & Software Engineering',
+          preferred_locations: ['Bengaluru', 'Mumbai', 'Remote'],
+          employment_type: 'full_time',
+          share_profile_with_employers: true,
+          cv_score: 75,
+          job_readiness_score: 80,
+          skills: ['Python', 'SQL', 'Excel', 'Communication', 'Problem Solving'],
+          bio: 'Verified student candidate profile.',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.STUDENTS, [...students, newStudent]);
+        return newStudent;
+      }
+    }
+    return undefined;
   },
   getStudentById: (id: string): StudentProfile | undefined => {
     return dataService.getAllStudents().find(s => s.id === id);
@@ -501,7 +615,40 @@ export const dataService = {
     return getStorage<Company[]>(STORAGE_KEYS.COMPANIES, []);
   },
   getCompanyByUserId: (userId: string): Company | undefined => {
-    return dataService.getAllCompanies().find(c => c.user_id === userId);
+    const companies = dataService.getAllCompanies();
+    let comp = companies.find(c => c.user_id === userId);
+    if (comp) return comp;
+
+    const user = dataService.getUserById(userId) || (dataService.getCurrentUser()?.id === userId ? dataService.getCurrentUser() : null);
+    if (user) {
+      comp = companies.find(c => c.business_email.toLowerCase() === user.email.toLowerCase());
+      if (comp) {
+        comp.user_id = user.id;
+        setStorage(STORAGE_KEYS.COMPANIES, companies);
+        return comp;
+      }
+      if (user.role === 'company') {
+        const newComp: Company = {
+          id: `company-${Date.now()}`,
+          user_id: user.id,
+          company_name: `${user.full_name}'s Tech Ventures`,
+          business_email: user.email,
+          industry: 'Technology & Cloud Solutions',
+          company_size: '51-200',
+          location: 'Bengaluru / Mumbai',
+          recruiter_name: user.full_name,
+          recruiter_phone: user.phone || '+91 98765 43210',
+          description: 'Enterprise recruiting partner.',
+          verification_status: 'verified',
+          subscription_tier: 'enterprise',
+          job_credits_remaining: 10,
+          created_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.COMPANIES, [...companies, newComp]);
+        return newComp;
+      }
+    }
+    return undefined;
   },
   getCompanyById: (id: string): Company | undefined => {
     return dataService.getAllCompanies().find(c => c.id === id);
@@ -529,7 +676,38 @@ export const dataService = {
     return getStorage<SkillCentre[]>(STORAGE_KEYS.SKILL_CENTRES, []);
   },
   getSkillCentreByUserId: (userId: string): SkillCentre | undefined => {
-    return dataService.getAllSkillCentres().find(sc => sc.user_id === userId);
+    const centres = dataService.getAllSkillCentres();
+    let sc = centres.find(c => c.user_id === userId);
+    if (sc) return sc;
+
+    const user = dataService.getUserById(userId) || (dataService.getCurrentUser()?.id === userId ? dataService.getCurrentUser() : null);
+    if (user) {
+      sc = centres.find(c => c.contact_email.toLowerCase() === user.email.toLowerCase());
+      if (sc) {
+        sc.user_id = user.id;
+        setStorage(STORAGE_KEYS.SKILL_CENTRES, centres);
+        return sc;
+      }
+      if (user.role === 'skill_centre') {
+        const newCentre: SkillCentre = {
+          id: `centre-${Date.now()}`,
+          user_id: user.id,
+          centre_name: `${user.full_name} Training Academy`,
+          contact_email: user.email,
+          phone: user.phone || '+91 98765 43210',
+          location: 'Bengaluru',
+          delivery_modes: ['live_online', 'offline', 'recorded'],
+          training_categories: ['Data Analytics', 'Software Development'],
+          verification_status: 'verified',
+          commission_rate: 15,
+          bio: 'Accredited Training Partner.',
+          created_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.SKILL_CENTRES, [...centres, newCentre]);
+        return newCentre;
+      }
+    }
+    return undefined;
   },
   getSkillCentreById: (id: string): SkillCentre | undefined => {
     return dataService.getAllSkillCentres().find(sc => sc.id === id);
@@ -557,7 +735,38 @@ export const dataService = {
     return getStorage<Institution[]>(STORAGE_KEYS.INSTITUTIONS, []);
   },
   getInstitutionByUserId: (userId: string): Institution | undefined => {
-    return dataService.getAllInstitutions().find(i => i.user_id === userId);
+    const institutions = dataService.getAllInstitutions();
+    let inst = institutions.find(i => i.user_id === userId);
+    if (inst) return inst;
+
+    const user = dataService.getUserById(userId) || (dataService.getCurrentUser()?.id === userId ? dataService.getCurrentUser() : null);
+    if (user) {
+      inst = institutions.find(i => i.institutional_email.toLowerCase() === user.email.toLowerCase());
+      if (inst) {
+        inst.user_id = user.id;
+        setStorage(STORAGE_KEYS.INSTITUTIONS, institutions);
+        return inst;
+      }
+      if (user.role === 'institution') {
+        const newInst: Institution = {
+          id: `inst-${Date.now()}`,
+          user_id: user.id,
+          institution_name: `${user.full_name} Institute of Technology`,
+          institution_type: 'college',
+          address: 'Main Campus, Tech Enclave',
+          contact_person: user.full_name,
+          institutional_email: user.email,
+          phone: user.phone || '+91 98765 43210',
+          student_count_expected: 450,
+          billing_terms: 'net30',
+          verification_status: 'verified',
+          created_at: new Date().toISOString()
+        };
+        setStorage(STORAGE_KEYS.INSTITUTIONS, [...institutions, newInst]);
+        return newInst;
+      }
+    }
+    return undefined;
   },
   getInstitutionById: (id: string): Institution | undefined => {
     return dataService.getAllInstitutions().find(i => i.id === id);

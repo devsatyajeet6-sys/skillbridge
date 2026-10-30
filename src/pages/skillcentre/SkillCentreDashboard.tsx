@@ -22,9 +22,10 @@ export const SkillCentreDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'courses' | 'students' | 'builder'>('overview');
   
   const currentUser = dataService.getCurrentUser();
-  const [centre, setCentre] = useState<SkillCentre | null>(
-    currentUser ? (dataService.getSkillCentreByUserId(currentUser.id) || dataService.getAllSkillCentres()[0]) : dataService.getAllSkillCentres()[0]
-  );
+  const [centre, setCentre] = useState<SkillCentre | null>(() => {
+    if (!currentUser) return dataService.getAllSkillCentres()[0] || null;
+    return dataService.getSkillCentreByUserId(currentUser.id) || null;
+  });
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [enrolments, setEnrolments] = useState<CourseEnrolment[]>([]);
@@ -43,7 +44,7 @@ export const SkillCentreDashboard: React.FC = () => {
 
   const refreshData = () => {
     const user = dataService.getCurrentUser();
-    const sc = user ? (dataService.getSkillCentreByUserId(user.id) || dataService.getAllSkillCentres()[0]) : dataService.getAllSkillCentres()[0];
+    const sc = user ? (dataService.getSkillCentreByUserId(user.id) || null) : (dataService.getAllSkillCentres()[0] || null);
     setCentre(sc);
     if (sc) {
       const myCourses = dataService.getAllCourses().filter(c => c.centre_id === sc.id);

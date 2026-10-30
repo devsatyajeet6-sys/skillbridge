@@ -37,9 +37,10 @@ export const StudentDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'profile' | 'jobs' | 'skills' | 'courses' | 'placement'>('overview');
   
   const currentUser = dataService.getCurrentUser();
-  const [student, setStudent] = useState<StudentProfile | null>(
-    currentUser ? (dataService.getStudentByUserId(currentUser.id) || dataService.getAllStudents()[0]) : null
-  );
+  const [student, setStudent] = useState<StudentProfile | null>(() => {
+    if (!currentUser) return dataService.getAllStudents()[0] || null;
+    return dataService.getStudentByUserId(currentUser.id) || null;
+  });
 
   const [allJobs, setAllJobs] = useState<Job[]>([]);
   const [allCourses, setAllCourses] = useState<Course[]>([]);
@@ -56,7 +57,15 @@ export const StudentDashboard: React.FC = () => {
 
   const refreshData = () => {
     const user = dataService.getCurrentUser();
-    const st = user ? (dataService.getStudentByUserId(user.id) || dataService.getAllStudents()[0]) : dataService.getAllStudents()[0];
+    let st: StudentProfile | null = null;
+    if (user) {
+      st = dataService.getStudentByUserId(user.id) || null;
+      if (st && user.full_name && st.full_name !== user.full_name) {
+        st = dataService.updateStudentProfile(st.id, { full_name: user.full_name }) || st;
+      }
+    } else {
+      st = dataService.getAllStudents()[0] || null;
+    }
     setStudent(st);
     if (st) {
       setAllJobs(dataService.getAllJobs().filter(j => j.moderation_status === 'approved' && j.is_active));

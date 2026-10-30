@@ -33,9 +33,10 @@ export const InstitutionDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'batches' | 'import' | 'reports'>('overview');
   
   const currentUser = dataService.getCurrentUser();
-  const [institution, setInstitution] = useState<Institution | null>(
-    currentUser ? (dataService.getInstitutionByUserId(currentUser.id) || dataService.getAllInstitutions()[0]) : dataService.getAllInstitutions()[0]
-  );
+  const [institution, setInstitution] = useState<Institution | null>(() => {
+    if (!currentUser) return dataService.getAllInstitutions()[0] || null;
+    return dataService.getInstitutionByUserId(currentUser.id) || null;
+  });
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [students, setStudents] = useState<StudentProfile[]>([]);
@@ -55,7 +56,7 @@ export const InstitutionDashboard: React.FC = () => {
 
   const refreshData = () => {
     const user = dataService.getCurrentUser();
-    const inst = user ? (dataService.getInstitutionByUserId(user.id) || dataService.getAllInstitutions()[0]) : dataService.getAllInstitutions()[0];
+    const inst = user ? (dataService.getInstitutionByUserId(user.id) || null) : (dataService.getAllInstitutions()[0] || null);
     setInstitution(inst);
     if (inst) {
       const bList = dataService.getBatchesForInstitution(inst.id);
