@@ -158,11 +158,11 @@ export const StudentDashboard: React.FC = () => {
         <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm mb-6 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
             <div className="w-16 h-16 rounded-2xl bg-indigo-600 text-white flex items-center justify-center text-xl font-bold shadow-md shadow-indigo-600/20 overflow-hidden shrink-0">
-              {student.full_name.slice(0, 2).toUpperCase()}
+              {(currentUser?.full_name || student.full_name).slice(0, 2).toUpperCase()}
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-black text-slate-900">{student.full_name}</h1>
+                <h1 className="text-2xl font-black text-slate-900">{currentUser?.full_name || student.full_name}</h1>
                 <span className="text-xs bg-indigo-50 text-indigo-700 font-semibold px-2.5 py-0.5 rounded-full border border-indigo-200">
                   Student
                 </span>

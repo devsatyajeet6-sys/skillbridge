@@ -182,7 +182,7 @@ export const CompanyDashboard: React.FC = () => {
                 <StatusBadge status={company.verification_status} />
               </div>
               <p className="text-xs text-slate-500 mt-1">
-                {company.industry} • {company.location} • Recruiter: {company.recruiter_name} ({company.business_email})
+                {company.industry} • {company.location} • Recruiter: {currentUser?.full_name || company.recruiter_name} ({currentUser?.email || company.business_email})
               </p>
             </div>
           </div>

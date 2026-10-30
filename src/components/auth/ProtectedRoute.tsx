@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { dataService } from '../../services/dataService';
 import { UserRole } from '../../types';
 
@@ -12,21 +12,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   allowedRoles
 }) => {
+  const location = useLocation();
   const currentUser = dataService.getCurrentUser();
 
-  // If no user is logged in, default to student demo persona
+  // If not logged in, redirect to login page instead of forcing a demo persona
   if (!currentUser) {
-    dataService.loginAsPersona('student');
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // If a specific role is expected, seamlessly auto-activate that persona in the unified app
-  useEffect(() => {
-    if (allowedRoles && allowedRoles.length > 0 && currentUser) {
-      if (!allowedRoles.includes(currentUser.role)) {
-        dataService.loginAsPersona(allowedRoles[0]);
-      }
-    }
-  }, [allowedRoles, currentUser]);
+  // If role is restricted and user does not match, redirect to unified dashboard
+  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(currentUser.role) && currentUser.role !== 'admin') {
+    return <Navigate to={`/dashboard?role=${currentUser.role}`} replace />;
+  }
 
   return <>{children}</>;
 };

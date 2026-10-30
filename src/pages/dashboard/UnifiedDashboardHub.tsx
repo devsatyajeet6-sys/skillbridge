@@ -59,7 +59,6 @@ export const UnifiedDashboardHub: React.FC = () => {
   const handleSelectRole = (role: UserRole) => {
     setActiveRole(role);
     setSearchParams({ role });
-    dataService.loginAsPersona(role);
   };
 
   return (
